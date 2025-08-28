@@ -38,6 +38,16 @@ This framework has been tested on x64 based Linux systems, specifically Ubuntu 2
 
 ## Setup
 1. Follow the [Isaac Lab pip installation instructions](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/pip_installation.html), with the following modifications:
+- Create a virtual environment with Python 3.10 instead of Python 3.11:
+```bash
+conda create -n env_isaaclab python=3.10
+```
+
+- When installing IsaacSim packages, use version 4.5.0 instead of version 5.0.0:
+```bash
+pip install "isaacsim[all,extscache]==4.5.0" --extra-index-url https://pypi.nvidia.com
+```
+
 - After cloning the Isaac Lab repository:
 ```bash
 git clone git@github.com:isaac-sim/IsaacLab.git
@@ -59,6 +69,10 @@ git clone https://github.com/kousheekc/isaac_drone_racer.git
 cd isaac_drone_racer
 pip3 install -e .
 ```
+
+### Installation Tips
+
+1. If you come across an error where Isaac Sim fails to pull assets, run `git lfs pull` in both `IsaacLab` and `isaac_drone_racer`.
 
 ## Usage
 The drone racing task is registered as a standard Gym environment with the ID: `Isaac-Drone-Racer-v0`. Training and evaluation are powered by the [skrl](https://github.com/Toni-SM/skrl) library.
