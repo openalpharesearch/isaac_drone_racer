@@ -206,6 +206,7 @@ def main():
             # exit the play loop after recording one video
             if timestep == args_cli.video_length:
                 break
+        print(actions)
 
         # time delay for real-time evaluation
         sleep_time = dt - (time.time() - start_time)
