@@ -57,6 +57,9 @@ from geometry_msgs.msg import PoseStamped, TwistStamped
 from autonomy_msgs.msg import DroneState  # ← your custom message
 from mavros_msgs.msg import OverrideRCIn     # ← using OverrideRCIn
 
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
+
+
 # ==================== OBSERVATION LAYOUT (edit to match your task) ====================
 # Default mapping assumes:
 #   0:4   -> quaternion [w,x,y,z]
@@ -134,6 +137,21 @@ class RCBuffer:
         return out, True
 
 # -------------------- ROS 2 bridge node: state publishers + RC subscriber --------------------
+
+SENSOR_QOS = QoSProfile(
+    depth=10,
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
+    durability=QoSDurabilityPolicy.VOLATILE,
+    history=QoSHistoryPolicy.KEEP_LAST
+)
+
+# For critical command and control data - uses RELIABLE
+COMMAND_QOS = QoSProfile(
+    depth=10,
+    reliability=QoSReliabilityPolicy.RELIABLE,
+    durability=QoSDurabilityPolicy.VOLATILE,
+    history=QoSHistoryPolicy.KEEP_LAST
+)
 class IsaacRosBridge(Node):
     def __init__(self, rc_buffer: RCBuffer, frame_map="map", frame_base="base_link"):
         super().__init__("isaac_ros_bridge")
@@ -142,14 +160,14 @@ class IsaacRosBridge(Node):
         self.frame_base = frame_base
 
         # State publisher (publishing DroneState)
-        self.state_pub = self.create_publisher(DroneState, "/drone/state", 10)
+        self.state_pub = self.create_publisher(DroneState, "/drone/state", qos_profile=SENSOR_QOS)
 
         # RC override subscriber
         self.rc_sub = self.create_subscription(
             OverrideRCIn,
             "/mavros/rc/override",
             self._on_rc_override,
-            10
+            qos_profile=COMMAND_QOS
         )
 
     def _on_rc_override(self, msg: OverrideRCIn):
