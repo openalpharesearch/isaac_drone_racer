@@ -7,6 +7,7 @@
 # which is licensed under the BSD-3-Clause License.
 
 import isaaclab.sim as sim_utils
+#import isaaclab.sim.cameras as CameraCfg
 import torch
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCollectionCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -51,10 +52,12 @@ class DroneRacerSceneCfg(InteractiveSceneCfg):
             "5": {"pos": (19.0 - init_x, 6.0 - init_y, 0.0), "yaw": gate_transform((4 / 9) * torch.pi)},
             "6": {"pos": (14.0 - init_x, 14.0 - init_y, 0.0), "yaw": gate_transform((1 / 2) * torch.pi)},
             "7": {"pos": (9.0 - init_x, 6.0 - init_y, 0.0), "yaw":gate_transform( - (1 / 10) * torch.pi)},
-            "8": {"pos": (9.0 - init_x, 6.0 - init_y, 0.0), "yaw":gate_transform( - (1 / 10) * torch.pi + torch.pi)},
+            "8": {"pos": (9.0 - init_x, 6.0 - init_y, 2.5), "yaw":gate_transform( - (1 / 10) * torch.pi + torch.pi)},
             "9": {"pos": (8.0 - init_x, 14.0 - init_y, 0.0), "yaw": gate_transform((1 / 10) * torch.pi)},
             "10": {"pos": (6.0 - init_x, 22.0 - init_y, 0.0), "yaw": gate_transform(- (1 / 10) * torch.pi)},
             "11": {"pos": (8.0 - init_x, 30.0 - init_y, 0.0), "yaw": gate_transform(- (1 / 4) * torch.pi)},
+            "12": {"pos": (8.0 - init_x, 30.0 - init_y, 2.5), "yaw": gate_transform(- (1 / 4) * torch.pi)},
+            "13": {"pos": (8.0 - init_x, 30.0 - init_y, 0.0), "yaw": gate_transform(- (1 / 4) * torch.pi)},
         }
     )
 
@@ -73,7 +76,7 @@ class DroneRacerSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Robot/body/camera",
         offset=TiledCameraCfg.OffsetCfg(pos=(0.14, 0.0, 0.05), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         data_types=["rgb"],
-        spawn=sim_utils.FisheyeCameraCfg(),
+        spawn=sim_utils.PinholeCameraCfg(),
         width=1000,
         height=1000,
     )

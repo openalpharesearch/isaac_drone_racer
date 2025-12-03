@@ -9,6 +9,7 @@
 import argparse
 
 from isaaclab.app import AppLauncher
+from geometry_msgs.msg import Quaternion, Vector3
 
 
 # add argparse arguments
@@ -159,6 +160,12 @@ class IsaacRosBridge(Node):
         self.state_raw_pub   = self.create_publisher(Float32MultiArray, "/drone/state/raw", 10)
         self.image_pub = self.create_publisher(Ros_Image, "/camera/image_raw", 1)
 
+
+        self.imu_quat_pub = self.create_publisher(Quaternion, "/drone/imu/orientation", 10)
+        self.imu_ang_pub  = self.create_publisher(Vector3, "/drone/imu/angular_velocity",10)
+        self.imu_acc_pub  = self.create_publisher(Vector3, "/drone/imu/linear_acceleration",10)
+
+
         # RC override subscriber (Float32MultiArray: [roll, pitch, thrust, yaw_rate])
         self.rc_sub = self.create_subscription(
             Float32MultiArray, "/rc/override", self._on_rc, 10
@@ -181,6 +188,30 @@ class IsaacRosBridge(Node):
         
         # 4. Publish the message
         self.image_pub.publish(ros_image_msg)
+
+    def publish_imu(self, imu_data):
+        quat_msg = Quaternion()
+        ang_vel_msg = Vector3()
+        lin_acc_msg = Vector3()
+        # Orientation (world frame quaternion)
+        quat_msg.w = float(imu_data.quat_w[0][0])
+        quat_msg.x = float(imu_data.quat_w[0][1])
+        quat_msg.y = float(imu_data.quat_w[0][2])
+        quat_msg.z = float(imu_data.quat_w[0][3])
+
+        # Angular velocity (body frame)
+        ang_vel_msg.x = float(imu_data.ang_vel_b[0][0])
+        ang_vel_msg.y = float(imu_data.ang_vel_b[0][1])
+        ang_vel_msg.z = float(imu_data.ang_vel_b[0][2])
+
+        # Linear acceleration (body frame)
+        lin_acc_msg.x = float(imu_data.lin_acc_b[0][0])
+        lin_acc_msg.y = float(imu_data.lin_acc_b[0][1])
+        lin_acc_msg.z = float(imu_data.lin_acc_b[0][2])
+        self.imu_quat_pub.publish(quat_msg)
+        self.imu_ang_pub.publish(ang_vel_msg)
+        self.imu_acc_pub.publish(lin_acc_msg)        
+
 
     def publish_state(self, obs_np: np.ndarray):
         # Raw obs (len=16)
@@ -394,6 +425,9 @@ def main():
             obs, rew, terminated, truncated, info = env.step(actions)
 
         camera_data = env.scene["tiled_camera"].data.output["rgb"].detach().cpu().numpy().squeeze()
+        imu_data = env.scene["imu"].data
+
+
         if args_cli.save_cam:
             frame_filename = os.path.join(
                         camera_out_dir, 
@@ -402,6 +436,7 @@ def main():
             PIL_Image.fromarray(camera_data).save(frame_filename)
         frame_count += 1
         ros_node.publish_cam(camera_data,frame_count)
+        ros_node.publish_imu(imu_data)
 
         if args_cli.video:
             timestep += 1
