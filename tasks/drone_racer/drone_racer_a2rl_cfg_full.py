@@ -39,20 +39,20 @@ class DroneRacerSceneCfg(InteractiveSceneCfg):
     # ground plane
     ground = AssetBaseCfg(
         prim_path="/World/Ground",
-        spawn=sim_utils.GroundPlaneCfg(),
+        spawn=sim_utils.GroundPlaneCfg(color=(0.2, 0.8, 0.2)),
     )
 
     # track
     track: RigidObjectCollectionCfg = generate_track(
         track_config={
-            "1": {"pos": (14.0 - init_x, 34.0 - init_y, 0.0), "yaw": gate_transform((1 / 2) * torch.pi)},
-            "2": {"pos": (20.0 - init_x, 30.0 - init_y, 0.0), "yaw": gate_transform((1 / 4) * torch.pi)},
-            "3": {"pos": (21.0 - init_x, 22.0 - init_y, 0.0), "yaw": gate_transform((1 / 6) * torch.pi)},
-            "4": {"pos": (21.0 - init_x, 14.0 - init_y, 0.0), "yaw": gate_transform(- (1 / 6) * torch.pi)},
+            "1": {"pos": (14.0 - init_x, 34.0 - init_y, 0.0), "yaw": gate_transform((1 / 2) * torch.pi + torch.pi)},
+            "2": {"pos": (20.0 - init_x, 30.0 - init_y, 0.0), "yaw": gate_transform((1 / 4) * torch.pi + torch.pi)},
+            "3": {"pos": (21.0 - init_x, 22.0 - init_y, 0.0), "yaw": gate_transform((1 / 6) * torch.pi + torch.pi)},
+            "4": {"pos": (21.0 - init_x, 14.0 - init_y, 0.0), "yaw": gate_transform(- (1 / 6) * torch.pi + torch.pi)},
             "5": {"pos": (19.0 - init_x, 6.0 - init_y, 0.0), "yaw": gate_transform((4 / 9) * torch.pi)},
             "6": {"pos": (14.0 - init_x, 14.0 - init_y, 0.0), "yaw": gate_transform((1 / 2) * torch.pi)},
-            "7": {"pos": (9.0 - init_x, 6.0 - init_y, 0.0), "yaw":gate_transform( - (1 / 10) * torch.pi)},
-            "8": {"pos": (9.0 - init_x, 6.0 - init_y, 2.5), "yaw":gate_transform( - (1 / 10) * torch.pi + torch.pi)},
+            "7": {"pos": (9.0 - init_x, 6.0 - init_y, 0.0), "yaw":gate_transform( - (1 / 10) * torch.pi + torch.pi)},
+            "8": {"pos": (9.0 - init_x, 6.0 - init_y, 2.5), "yaw":gate_transform( - (1 / 10) * torch.pi)},
             "9": {"pos": (8.0 - init_x, 14.0 - init_y, 0.0), "yaw": gate_transform((1 / 10) * torch.pi)},
             "10": {"pos": (6.0 - init_x, 22.0 - init_y, 0.0), "yaw": gate_transform(- (1 / 10) * torch.pi)},
             "11": {"pos": (8.0 - init_x, 30.0 - init_y, 0.0), "yaw": gate_transform(- (1 / 4) * torch.pi)},
@@ -84,7 +84,7 @@ class DroneRacerSceneCfg(InteractiveSceneCfg):
     # lights
     dome_light = AssetBaseCfg(
         prim_path="/World/Light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0, texture_file="/home/tpark/Desktop/a2rl/IsaacLab/isaac_drone_racer/assets/university_workshop_4k.exr"),
     )
 
 
