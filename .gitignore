@@ -4,12 +4,6 @@
 **/*.so
 **/*.log*
 
-
-# ROS
-**/build*/
-**/install*/
-**/log*/
-
 # Omniverse
 **/*.dmp
 **/.thumbs
@@ -50,7 +44,6 @@ docker/.container.cfg
 **/videos/*
 **/wandb/*
 **/.neptune/*
-**/camerapov/*
 docker/artifacts/
 *.tmp
 

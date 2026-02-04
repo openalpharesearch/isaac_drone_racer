@@ -14,12 +14,12 @@ import isaaclab.utils.math as math_utils
 import torch
 from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import ContactSensorCfg, ImuCfg, TiledCameraCfg
 
 from utils.logger import log
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
+
 
 def root_lin_vel_b(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Asset root linear velocity in the body frame."""
