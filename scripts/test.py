@@ -1,10 +1,22 @@
 # Copyright (c) 2025, Kousheek Chakraborty
+# Forked and maintained by Ai Robotics @ Berkeley
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # This project uses the IsaacLab framework (https://github.com/isaac-sim/IsaacLab),
 # which is licensed under the BSD-3-Clause License.
+
+"""Diagnostic script for running the drone racer RL environment with zero actions.
+
+Launches the IsaacSim application and steps the DroneRacerEnvCfg environment
+while sending zero-valued actions. Useful for verifying environment setup,
+observation pipelines, and reward signals without a trained policy.
+
+Usage::
+
+    python scripts/test.py --num_envs 16 [--headless]
+"""
 
 import argparse
 
@@ -27,6 +39,12 @@ from tasks.drone_racer.drone_racer_env_cfg import DroneRacerEnvCfg
 
 
 def main():
+    """Run the environment loop with zero actions until the simulator exits.
+
+    Creates a :class:`ManagerBasedRLEnv` from :class:`DroneRacerEnvCfg`,
+    resets it periodically, and steps with zero actions so that the
+    environment dynamics can be observed in the viewer.
+    """
     env_cfg = DroneRacerEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
 

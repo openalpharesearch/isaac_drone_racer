@@ -1,4 +1,5 @@
 # Copyright (c) 2025, Kousheek Chakraborty
+# Forked and maintained by Ai Robotics @ Berkeley
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause

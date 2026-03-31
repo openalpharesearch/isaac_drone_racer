@@ -1,17 +1,17 @@
 [package]
 
 # Semantic Versioning is used: https://semver.org/
-version = "0.1.0"
+version = "0.1.2"
 
 # Description
 category = "isaaclab"
 readme  = "README.md"
 
 title = "Isaac Drone Racer"
-author = "Kousheek Chakraborty"
-maintainer = "Kousheek Chakraborty"
+author = "Ai Robotics @ Berkeley"
+maintainer = "Ai Robotics @ Berkeley"
 description="Isaac Drone Racer framework for RL based drone racing with IsaacLab"
-repository = "https://github.com/kousheekc/isaac_drone_racer"
+repository = "https://github.com/airobotics-ucberkeley/isaac_drone_racer_public"
 keywords = ["isaaclab", "drone", "rl"]
 
 [dependencies]

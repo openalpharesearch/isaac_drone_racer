@@ -1,10 +1,28 @@
 # Copyright (c) 2025, Kousheek Chakraborty
+# Forked and maintained by Ai Robotics @ Berkeley
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # This project uses the IsaacLab framework (https://github.com/isaac-sim/IsaacLab),
 # which is licensed under the BSD-3-Clause License.
+
+"""Train a skrl RL agent for the drone racer task in IsaacSim.
+
+Supports PPO and multi-agent variants (IPPO, MAPPO, AMP), distributed
+multi-GPU training, video recording during training, and Hydra-based
+configuration overrides.
+
+Usage::
+
+    python scripts/rl/train.py --task <TASK> [OPTIONS]
+
+    # Train PPO for 5000 iterations with video every 2000 steps
+    python scripts/rl/train.py --task Isaac-Drone-Racer-v0 --max_iterations 5000 --video
+
+    # Resume from a checkpoint
+    python scripts/rl/train.py --task Isaac-Drone-Racer-v0 --checkpoint logs/skrl/.../best.pt
+"""
 
 import argparse
 import sys
@@ -101,7 +119,12 @@ agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"sk
 
 @hydra_task_config(args_cli.task, agent_cfg_entry_point)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
-    """Train with skrl agent."""
+    """Configure the environment and skrl runner, then execute the training loop.
+
+    Args:
+        env_cfg: Hydra-resolved environment configuration (scene, sim params, etc.).
+        agent_cfg: Hydra-resolved agent / trainer configuration dictionary.
+    """
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device

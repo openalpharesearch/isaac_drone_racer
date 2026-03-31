@@ -1,4 +1,5 @@
 # Copyright (c) 2025, Kousheek Chakraborty
+# Forked and maintained by Ai Robotics @ Berkeley
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,24 +7,39 @@
 # This project uses the IsaacLab framework (https://github.com/isaac-sim/IsaacLab),
 # which is licensed under the BSD-3-Clause License.
 
+"""First-order motor response model for quadrotor rotors.
+
+Simulates per-rotor angular-velocity dynamics with configurable time constants
+and rate limits, integrated via forward-Euler at a fixed time step.
+"""
+
 import torch
 
 
 class Motor:
-    def __init__(self, num_envs, taus, init, max_rate, min_rate, dt, use, device="cpu", dtype=torch.float32):
-        """
-        Initializes the motor model.
+    """Batched first-order motor model with rate limiting.
 
-        Parameters:
-        - num_envs: Number of envs.
-        - taus: (4,) Tensor or list specifying time constants per motor.
-        - init: (4,) Tensor or list specifying the initial omega per motor. (rad/s)
-        - max_rate: (4,) Tensor or list specifying max rate of change of omega per motor. (rad/s^2)
-        - min_rate: (4,) Tensor or list specifying min rate of change of omega per motor. (rad/s^2)
-        - dt: Time step for integration.
-        - use: Boolean indicating whether to use motor dynamics.
-        - device: 'cpu' or 'cuda' for tensor operations.
-        - dtype: Data type for tensors.
+    Each rotor tracks a reference angular velocity through a first-order lag
+    (time constant ``tau``) whose rate of change is clamped between
+    ``min_rate`` and ``max_rate``.
+
+    Attributes:
+        omega: Current rotor angular velocities ``(num_envs, num_motors)``.
+    """
+    def __init__(self, num_envs, taus, init, max_rate, min_rate, dt, use, device="cpu", dtype=torch.float32):
+        """Initialise the motor model.
+
+        Args:
+            num_envs: Number of parallel environments.
+            taus: Time constant per motor, shape ``(4,)``.
+            init: Initial angular velocity per motor in rad/s, shape ``(4,)``.
+            max_rate: Upper rate-of-change limit in rad/s^2, shape ``(4,)``.
+            min_rate: Lower rate-of-change limit in rad/s^2, shape ``(4,)``.
+            dt: Integration time step in seconds.
+            use: If ``False``, motor dynamics are bypassed and omega
+                tracks the reference instantaneously.
+            device: Torch device (``'cpu'`` or ``'cuda'``).
+            dtype: Desired tensor data type.
         """
         self.num_envs = num_envs
         self.num_motors = len(taus)
@@ -41,14 +57,14 @@ class Motor:
         self.min_rate = torch.tensor(min_rate, device=device).expand(num_envs, -1)  # (num_envs, num_motors)
 
     def compute(self, omega_ref):
-        """
-        Computes the new omega values based on reference omega and motor dynamics.
+        """Advance the motor state by one time step.
 
-        Parameters:
-        - omega_ref: (num_envs, num_motors) Tensor of reference omega values.
+        Args:
+            omega_ref: Reference angular velocities of shape
+                ``(num_envs, num_motors)``.
 
         Returns:
-        - omega: (num_envs, num_motors) Tensor of updated omega values.
+            Updated angular velocities of shape ``(num_envs, num_motors)``.
         """
 
         if not self.use:
@@ -64,7 +80,9 @@ class Motor:
         return self.omega
 
     def reset(self, env_ids):
-        """
-        Resets the motor model to initial conditions.
+        """Reset selected environments to their initial motor speeds.
+
+        Args:
+            env_ids: Tensor or sequence of environment indices to reset.
         """
         self.omega[env_ids] = torch.tensor(self.init, device=self.device, dtype=self.dtype).expand(len(env_ids), -1)

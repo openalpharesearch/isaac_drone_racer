@@ -1,10 +1,18 @@
 # Copyright (c) 2025, Kousheek Chakraborty
+# Forked and maintained by Ai Robotics @ Berkeley
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # This project uses the IsaacLab framework (https://github.com/isaac-sim/IsaacLab),
 # which is licensed under the BSD-3-Clause License.
+
+"""Base drone racer environment configuration.
+
+Defines the scene, MDP components (observations, actions, rewards, terminations,
+events, commands), and top-level environment configs for training and evaluation
+of a drone racing agent.
+"""
 
 import isaaclab.sim as sim_utils
 import torch
@@ -17,7 +25,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg, ImuCfg, TiledCameraCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils import configclass
 
 from . import mdp
@@ -25,9 +33,16 @@ from .track_generator import generate_track
 
 from assets.five_in_drone import FIVE_IN_DRONE  # isort:skip
 
+TARGET_POS = [0.0, 0.0, 0.5]  # Default target position for flyaway termination
+
 
 @configclass
 class DroneRacerSceneCfg(InteractiveSceneCfg):
+    """Scene configuration for the drone racer environment.
+
+    Includes a ground plane, a race track, the five-inch drone,
+    a contact sensor, and dome lighting.
+    """
 
     # ground plane
     ground = AssetBaseCfg(
@@ -38,13 +53,10 @@ class DroneRacerSceneCfg(InteractiveSceneCfg):
     # track
     track: RigidObjectCollectionCfg = generate_track(
         track_config={
-            "1": {"pos": (0.0, 0.0, 1.0), "yaw": 0.0},
-            "2": {"pos": (10.0, 5.0, 0.0), "yaw": 0.0},
-            "3": {"pos": (10.0, -5.0, 0.0), "yaw": (5 / 4) * torch.pi},
-            "4": {"pos": (-5.0, -5.0, 2.5), "yaw": torch.pi},
-            "5": {"pos": (-5.0, -5.0, 0.0), "yaw": 0.0},
-            "6": {"pos": (5.0, 0.0, 0.0), "yaw": (1 / 2) * torch.pi},
-            "7": {"pos": (0.0, 5.0, 0.0), "yaw": torch.pi},
+            "1": {"pos": (0.0, 1.5, 0.0), "yaw": torch.pi},
+            "2": {"pos": (-1.5, 0.0, 0.0), "yaw": -torch.pi / 2},
+            "3": {"pos": (0.0, -1.5, 0.0), "yaw": 0.0},
+            "4": {"pos": (1.5, 0.0, 0.0), "yaw": torch.pi / 2},
         }
     )
 
@@ -53,15 +65,6 @@ class DroneRacerSceneCfg(InteractiveSceneCfg):
 
     # sensors
     collision_sensor: ContactSensorCfg = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", debug_vis=True)
-    imu = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/body", debug_vis=False)
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/body/camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(0.14, 0.0, 0.05), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
-        data_types=["rgb"],
-        spawn=sim_utils.FisheyeCameraCfg(),
-        width=1000,
-        height=1000,
-    )
 
     # lights
     dome_light = AssetBaseCfg(
@@ -74,7 +77,7 @@ class DroneRacerSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    control_action: mdp.ControlActionCfg = mdp.ControlActionCfg(use_motor_model=False)
+    control_action: mdp.ControlActionCfg = mdp.ControlActionCfg()
 
 
 @configclass
@@ -86,9 +89,8 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         position = ObsTerm(func=mdp.root_pos_w)
-        attitude = ObsTerm(func=mdp.root_quat_w)
+        attitude = ObsTerm(func=mdp.root_rotmat_w)
         lin_vel = ObsTerm(func=mdp.root_lin_vel_b)
-        ang_vel = ObsTerm(func=mdp.root_ang_vel_b)
         target_pos_b = ObsTerm(func=mdp.target_pos_b, params={"command_name": "target"})
         actions = ObsTerm(func=mdp.last_action)
 
@@ -96,27 +98,13 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = True
 
-    @configclass
-    class CriticCfg(ObsGroup):
-        """Observations for critic group."""
-
-        image = ObsTerm(func=mdp.image)
-        imu_ang_vel = ObsTerm(func=mdp.imu_ang_vel)
-        imu_lin_acc = ObsTerm(func=mdp.imu_lin_acc)
-        imu_att = ObsTerm(func=mdp.imu_orientation)
-
-        def __post_init__(self) -> None:
-            self.enable_corruption = False
-            self.concatenate_terms = False
-
     # observation groups
     policy: PolicyCfg = PolicyCfg()
-    critic: CriticCfg = CriticCfg()
 
 
 @configclass
 class EventCfg:
-    """Configuration for events."""
+    """Configuration for randomization and reset events."""
 
     # reset
     # TODO: Resetting base happens in the command reset also for the moment
@@ -125,12 +113,12 @@ class EventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": (-3.5, -1.5),
-                "y": (-0.5, 0.5),
-                "z": (1.5, 0.5),
-                "roll": (-0.0, 0.0),
-                "pitch": (-0.0, 0.0),
-                "yaw": (-0.0, 0.0),
+                "x": (-3.0, 3.0),
+                "y": (-3.0, 3.0),
+                "z": (0.0, 0.0),
+                "roll": (-0.5, 0.5),
+                "pitch": (-0.5, 0.5),
+                "yaw": (-torch.pi, torch.pi),
             },
             "velocity_range": {
                 "x": (0.0, 0.0),
@@ -143,16 +131,46 @@ class EventCfg:
         },
     )
 
-    # intervals
-    push_robot = EventTerm(
-        func=mdp.apply_external_force_torque,
-        mode="interval",
-        interval_range_s=(0.0, 0.2),
-        params={
-            "force_range": (-0.1, 0.1),
-            "torque_range": (-0.05, 0.05),
-        },
-    )
+    # randomize_mass = EventTerm(
+    #     func=mdp.randomize_rigid_body_mass,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", body_names="body*"),
+    #         "mass_distribution_params": (0.8, 1.2),
+    #         "operation": "scale",
+    #     },
+    # )
+
+    # randomize_inertia = EventTerm(
+    #     func=mdp.randomize_rigid_body_inertia,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", body_names="body"),
+    #         "inertia_distribution_params": (0.8, 1.2),
+    #         "operation": "scale",
+    #     },
+    # )
+
+    # randomize_twr = EventTerm(
+    #     func=mdp.randomize_twr,
+    #     mode="reset",
+    #     params={
+    #         "action": "control_action",
+    #         "twr_distribution_params": (0.8, 1.2),
+    #         "operation": "scale",
+    #     },
+    # )
+
+    # # intervals
+    # push_robot = EventTerm(
+    #     func=mdp.apply_external_force_torque,
+    #     mode="interval",
+    #     interval_range_s=(0.0, 0.2),
+    #     params={
+    #         "force_range": (-0.01, 0.01),
+    #         "torque_range": (-0.005, 0.005),
+    #     },
+    # )
 
 
 @configclass
@@ -164,6 +182,7 @@ class CommandsCfg:
         track_name="track",
         randomise_start=None,
         record_fpv=False,
+        n=4,
         resampling_time_range=(1e9, 1e9),
         debug_vis=True,
     )
@@ -174,10 +193,11 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     terminating = RewTerm(func=mdp.is_terminated, weight=-500.0)
-    ang_vel_l2 = RewTerm(func=mdp.ang_vel_l2, weight=-0.0001)
     progress = RewTerm(func=mdp.progress, weight=20.0, params={"command_name": "target"})
     gate_passed = RewTerm(func=mdp.gate_passed, weight=400.0, params={"command_name": "target"})
-    lookat_next = RewTerm(func=mdp.lookat_next_gate, weight=0.1, params={"command_name": "target", "std": 0.5})
+    action_l2 = RewTerm(func=mdp.action_l2, weight=-0.01)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.0001)
+    # flat_orientation = RewTerm(func=mdp.flat_orientation_l2, weight=-5.0)
 
 
 @configclass
@@ -185,7 +205,7 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    flyaway = DoneTerm(func=mdp.flyaway, params={"command_name": "target", "distance": 20.0})
+    flyaway = DoneTerm(func=mdp.flyaway, params={"command_name": "target", "distance": 5.0})
     collision = DoneTerm(
         func=mdp.illegal_contact, params={"sensor_cfg": SceneEntityCfg("collision_sensor"), "threshold": 0.01}
     )
@@ -207,61 +227,15 @@ class DroneRacerEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         """Post initialization."""
 
-        # Disable IMU and Tiled Camera
-        self.scene.imu = None
-        self.scene.tiled_camera = None
-
-        # MDP settings
-        self.observations.critic = None
         self.events.reset_base = None
         self.commands.target.randomise_start = True
 
         # general settings
-        self.decimation = 4
-        self.episode_length_s = 20
+        self.decimation = 2
+        self.episode_length_s = 10.0
         # viewer settings
-        self.viewer.eye = (-10.0, -10.0, 10.0)
-        self.viewer.lookat = (0.0, 0.0, 0.0)
+        self.viewer.eye = (-3.0, -3.0, 3.0)
+        self.viewer.lookat = (0.0, 0.0, 1.0)
         # simulation settings
-        self.sim.dt = 1 / 400
-        self.sim.render_interval = self.decimation
-
-
-@configclass
-class DroneRacerEnvCfg_PLAY(ManagerBasedRLEnvCfg):
-    # Scene settings
-    scene: DroneRacerSceneCfg = DroneRacerSceneCfg(num_envs=4096, env_spacing=0.0)
-    # MDP settings
-    observations: ObservationsCfg = ObservationsCfg()
-    actions: ActionsCfg = ActionsCfg()
-    commands: CommandsCfg = CommandsCfg()
-    events: EventCfg = EventCfg()
-    rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
-
-    # Post initialization
-    def __post_init__(self) -> None:
-        """Post initialization."""
-
-        # Disable IMU and Tiled Camera
-        self.scene.imu = None
-        self.scene.tiled_camera = None
-
-        # MDP settings
-        self.observations.critic = None
-
-        # Disable push robot events
-        self.events.push_robot = None
-
-        # Enable recording fpv footage
-        # self.commands.target.record_fpv = True
-
-        # general settings
-        self.decimation = 4
-        self.episode_length_s = 20
-        # viewer settings
-        self.viewer.eye = (-10.0, -10.0, 10.0)
-        self.viewer.lookat = (0.0, 0.0, 0.0)
-        # simulation settings
-        self.sim.dt = 1 / 400
+        self.sim.dt = 1 / 480
         self.sim.render_interval = self.decimation

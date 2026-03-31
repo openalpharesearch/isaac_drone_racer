@@ -1,10 +1,28 @@
 # Copyright (c) 2025, Kousheek Chakraborty
+# Forked and maintained by Ai Robotics @ Berkeley
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # This project uses the IsaacLab framework (https://github.com/isaac-sim/IsaacLab),
 # which is licensed under the BSD-3-Clause License.
+
+"""Evaluate a trained skrl RL agent in the IsaacSim environment.
+
+Loads a checkpoint produced by the training script and runs the policy in
+evaluation mode.  Supports video recording, real-time playback, CSV metric
+logging, and multiple ML frameworks / RL algorithms.
+
+Usage::
+
+    python scripts/rl/play.py --task <TASK> --checkpoint <PATH> [OPTIONS]
+
+    # Record a video of 200 steps
+    python scripts/rl/play.py --task Isaac-Drone-Racer-v0 --checkpoint best.pt --video
+
+    # Log metrics for 5 episodes
+    python scripts/rl/play.py --task Isaac-Drone-Racer-v0 --num_envs 1 --log 5
+"""
 
 import argparse
 
@@ -103,7 +121,15 @@ algorithm = args_cli.algorithm.lower()
 
 
 def main():
-    """Play with skrl agent."""
+    """Load a trained skrl checkpoint and run the agent in evaluation mode.
+
+    The function resolves the checkpoint path (explicit, pretrained, or
+    latest from the log directory), creates the Gymnasium environment,
+    wraps it for skrl, and enters the simulation loop.
+
+    Raises:
+        ValueError: If ``--log`` is used with ``--num_envs > 1``.
+    """
     # configure the ML framework into the global skrl variable
     if args_cli.ml_framework.startswith("jax"):
         skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"

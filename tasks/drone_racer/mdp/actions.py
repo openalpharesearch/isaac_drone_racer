@@ -1,10 +1,17 @@
 # Copyright (c) 2025, Kousheek Chakraborty
+# Forked and maintained by Ai Robotics @ Berkeley
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # This project uses the IsaacLab framework (https://github.com/isaac-sim/IsaacLab),
 # which is licensed under the BSD-3-Clause License.
+
+"""MDP action space definitions for drone racing.
+
+Defines body-rate control actions that map neural network outputs to thrust
+and torque commands applied to the drone body.
+"""
 
 from __future__ import annotations
 
@@ -15,7 +22,7 @@ from isaaclab.assets import Articulation
 from isaaclab.managers import ActionTerm, ActionTermCfg
 from isaaclab.utils import configclass
 
-from dynamics import Allocation, Motor
+from dynamics import BodyRateController
 from utils.logger import log
 
 if TYPE_CHECKING:
@@ -23,16 +30,23 @@ if TYPE_CHECKING:
 
 
 class ControlAction(ActionTerm):
-    r"""Body torque control action term.
+    """Body-rate control action term for quadrotor drones.
 
-    This action term applies a wrench to the drone body frame based on action commands
-
+    Maps neural network outputs (4-dimensional, normalized to [-1, 1]) to
+    collective thrust and body-frame torques applied as external forces to
+    the drone rigid body.
     """
 
     cfg: ControlActionCfg
     """The configuration of the action term."""
 
     def __init__(self, cfg: ControlActionCfg, env: ManagerBasedRLEnv) -> None:
+        """Initialize the control action term.
+
+        Args:
+            cfg: Action term configuration specifying controller parameters.
+            env: The RL environment instance.
+        """
         super().__init__(cfg, env)
 
         self.cfg = cfg
@@ -45,25 +59,19 @@ class ControlAction(ActionTerm):
         self._processed_actions = torch.zeros(self.num_envs, 4, device=self.device)
         self._thrust = torch.zeros(self.num_envs, 1, 3, device=self.device)
         self._moment = torch.zeros(self.num_envs, 1, 3, device=self.device)
+        self._twr_default = torch.full((self.num_envs, 1), self.cfg.thrust_weight_ratio, device=self.device)
+        self._twr = torch.full((self.num_envs, 1), self.cfg.thrust_weight_ratio, device=self.device)
+        self._max_thrust = (
+            self._robot.data.default_mass.sum(dim=1, keepdim=True)
+            * -self._env.sim.cfg.gravity[-1]
+            * self.cfg.thrust_weight_ratio
+        ).to(self.device)
 
-        self._allocation = Allocation(
-            num_envs=self.num_envs,
-            arm_length=self.cfg.arm_length,
-            thrust_coeff=self.cfg.thrust_coef,
-            drag_coeff=self.cfg.drag_coef,
-            device=self.device,
-            dtype=self._raw_actions.dtype,
-        )
-        self._motor = Motor(
-            num_envs=self.num_envs,
-            taus=self.cfg.taus,
-            init=self.cfg.init,
-            max_rate=self.cfg.max_rate,
-            min_rate=self.cfg.min_rate,
-            dt=env.physics_dt,
-            use=self.cfg.use_motor_model,
-            device=self.device,
-            dtype=self._raw_actions.dtype,
+        self._rate_controller = BodyRateController(
+            self.num_envs,
+            self._robot.data.default_inertia[:, 0].view(-1, 3, 3),
+            torch.eye(3) * self.cfg.k_rates,
+            self.device,
         )
 
     """
@@ -72,38 +80,89 @@ class ControlAction(ActionTerm):
 
     @property
     def action_dim(self) -> int:
-        # TODO: make more explicit (thrust = 6, rates = 6, attitude = 6) all happen to be 6, but they represent different things
+        """The dimension of the action space.
+
+        Returns:
+            Number of action components (4: one per motor).
+        """
         return self._raw_actions.shape[1]
 
     @property
     def raw_actions(self) -> torch.Tensor:
+        """The raw (unprocessed) actions from the policy. Shape: ``(num_envs, 4)``."""
         return self._raw_actions
 
     @property
     def processed_actions(self) -> torch.Tensor:
+        """The processed actions after mapping to thrust and torques.
+
+        Returns:
+            Tensor of ``[collective_thrust, torque_x, torque_y, torque_z]``
+            per environment. Shape: ``(num_envs, 4)``.
+        """
         return self._processed_actions
 
     @property
     def has_debug_vis_implementation(self) -> bool:
+        """Whether this action term has a debug visualization implementation."""
         return False
+
+    @property
+    def twr(self) -> torch.Tensor:
+        """Thrust to weight ratio."""
+        return self._twr
+
+    @twr.setter
+    def twr(self, value: torch.Tensor):
+        """Set thrust to weight ratio."""
+        self._twr = value
+
+    @property
+    def twr_default(self) -> torch.Tensor:
+        """Thrust to weight ratio."""
+        return self._twr_default
 
     """
     Operations.
     """
 
     def process_actions(self, actions: torch.Tensor):
+        """Process raw policy actions into thrust and torque commands.
 
-        self._raw_actions[:] = actions
+        Clamps actions to [-1, 1], maps thrust to [0, max_thrust], maps
+        rates to angular velocity targets, and computes body torques via
+        the rate controller.
+
+        Args:
+            actions: Raw actions from the policy. Shape: ``(num_envs, 4)``.
+        """
+        self._raw_actions[:] = actions.clone()
         clamped = self._raw_actions.clamp_(-1.0, 1.0)
-        mapped = (clamped + 1.0) / 2.0
-        omega_ref = self.cfg.omega_max * mapped
-        omega_real = self._motor.compute(omega_ref)
-        self._processed_actions = self._allocation.compute(omega_real)
+        log(self._env, ["a1", "a2", "a3", "a4"], actions)
+        log(self._env, ["a1_clamped", "a2_clamped", "a3_clamped", "a4_clamped"], clamped)
 
-        log(self._env, ["a1", "a2", "a3", "a4"], self._raw_actions)
-        log(self._env, ["w1", "w2", "w3", "w4"], omega_real)
+        # Clamp rates setpoint and total thrust
+        # Calculate wrench based on rates setpoint
+        # Calculate thrust setpoint based on wrench and allocation inverse
+        # Clamp thrust setpoint
+
+        # print(self._robot.data.default_mass.sum(dim=1, keepdim=True))
+        # print(self._robot.data.default_inertia)
+
+        mapped = clamped.clone()
+        mapped[:, :1] = (mapped[:, :1] + 1) / 2
+        mapped[:, :1] *= self._max_thrust
+        mapped[:, 1:] *= torch.tensor(self.cfg.max_ang_vel, device=self.device, dtype=self._raw_actions.dtype)
+        mapped[:, 1:] = self._rate_controller.compute_moment(mapped[:, 1:], self._robot.data.root_ang_vel_b)
+        log(self._env, ["T", "rate1", "rate2", "rate3"], mapped)
+        self._processed_actions = mapped
 
     def apply_actions(self):
+        """Apply computed thrust and torques as external forces on the drone body.
+
+        Sets the z-axis thrust and xyz torques on the robot body via the
+        Isaac Sim external force/torque API.
+        """
         self._thrust[:, 0, 2] = self._processed_actions[:, 0]
         self._moment[:, 0, :] = self._processed_actions[:, 1:]
         self._robot.set_external_force_and_torque(self._thrust, self._moment, body_ids=self._body_id)
@@ -112,6 +171,12 @@ class ControlAction(ActionTerm):
         log(self._env, ["time"], self._elapsed_time)
 
     def reset(self, env_ids):
+        """Reset action buffers and robot joint state.
+
+        Args:
+            env_ids: Environment indices to reset. If ``None`` or all envs,
+                resets every environment.
+        """
         if env_ids is None or len(env_ids) == self.num_envs:
             env_ids = self._robot._ALL_INDICES
 
@@ -119,7 +184,6 @@ class ControlAction(ActionTerm):
         self._processed_actions[env_ids] = 0.0
         self._elapsed_time[env_ids] = 0.0
 
-        self._motor.reset(env_ids)
         self._robot.reset(env_ids)
         joint_pos = self._robot.data.default_joint_pos[env_ids]
         joint_vel = self._robot.data.default_joint_vel[env_ids]
@@ -132,34 +196,22 @@ class ControlAction(ActionTerm):
 
 @configclass
 class ControlActionCfg(ActionTermCfg):
-    """
-    See :class:`ControlAction` for more details.
+    """Configuration for :class:`ControlAction`.
+
+    Specifies controller parameters and rate limits for the quadrotor
+    body-rate controller.
     """
 
     class_type: type[ActionTerm] = ControlAction
-    """ Class of the action term."""
 
     asset_name: str = "robot"
-    """Name of the asset in the environment for which the commands are generated."""
-    arm_length: float = 0.035
-    """Length of the arms of the drone in meters."""
-    drag_coef: float = 1.5e-9
-    """Drag torque coefficient."""
-    thrust_coef: float = 2.25e-7
-    """Thrust coefficient.
-    Calculated with 5145 rad/s max angular velociy, thrust to weight: 4, mass: 0.6076 kg and gravity: 9.81 m/s^2.
-    thrust_coef = (4 * 0.6076 * 9.81) / (4 * 5145**2) = 2.25e-7."""
-    omega_max: float = 5145.0
-    """Maximum angular velocity of the drone motors in rad/s.
-    Calculated with 1950KV motor, with 6S LiPo battery with 4.2V per cell.
-    1950 * 6 * 4.2 = 49,140 RPM ~= 5145 rad/s."""
-    taus: list[float] = (0.0001, 0.0001, 0.0001, 0.0001)
-    """Time constants for each motor."""
-    init: list[float] = (2572.5, 2572.5, 2572.5, 2572.5)
-    """Initial angular velocities for each motor in rad/s."""
-    max_rate: list[float] = (50000.0, 50000.0, 50000.0, 50000.0)
-    """Maximum rate of change of angular velocities for each motor in rad/s^2."""
-    min_rate: list[float] = (-50000.0, -50000.0, -50000.0, -50000.0)
-    """Minimum rate of change of angular velocities for each motor in rad/s^2."""
-    use_motor_model: bool = False
-    """Flag to determine if motor delay is bypassed."""
+    """Name of the robot asset in the scene."""
+
+    thrust_weight_ratio: float = 2.5
+    """Thrust weight ratio of the drone."""
+
+    max_ang_vel: list[float] = [3.5, 3.5, 3.5]
+    """Maximum angular velocity in rad/s."""
+
+    k_rates: float = 0.01
+    """Proportional gain for angular velocity error."""

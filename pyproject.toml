@@ -1,3 +1,38 @@
+# Isaac Drone Racer — RL-based drone racing with IsaacLab.
+# Install: ./setup.sh (creates env_isaaclab venv, installs isaacsim + torch + isaaclab + this project).
+# Heavy deps (isaacsim, torch, isaaclab) are installed by setup.sh via pip install.
+
+[project]
+name = "isaac-drone-racer"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Ai Robotics @ Berkeley", email = "noreply@example.com" }]
+maintainers = [{ name = "Ai Robotics @ Berkeley", email = "noreply@example.com" }]
+dynamic = ["version", "description", "license", "keywords", "classifiers", "scripts"]
+dependencies = [
+    # IsaacLab runtime deps (from IsaacLab/source/isaaclab/setup.py)
+    "numpy<2",
+    "toml",
+    "flatdict>=4.0.0",
+    "prettytable==3.3.0",
+    "trimesh",
+    "warp-lang",
+    "hydra-core",
+    "omegaconf",
+    "gymnasium==1.2.0",
+    "Pillow>=11.2.1",
+    "packaging",
+    # RL training (skrl)
+    "skrl>=1.4.2",
+    # Local project deps
+    "psutil",
+    "h5py",
+    "pandas",
+    "scienceplots",
+    "matplotlib",
+    "pyyaml",
+]
+
 [build-system]
 requires = ["setuptools", "wheel", "toml"]
 build-backend = "setuptools.build_meta"

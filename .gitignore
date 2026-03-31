@@ -1,8 +1,15 @@
+env_isaaclab/
+external/
+
 # C++
 **/cmake-build*/
 **/build*/
 **/*.so
 **/*.log*
+
+# ROS
+**/install*/
+**/log*/
 
 # Omniverse
 **/*.dmp
@@ -44,6 +51,7 @@ docker/.container.cfg
 **/videos/*
 **/wandb/*
 **/.neptune/*
+**/camerapov/*
 docker/artifacts/
 *.tmp
 
